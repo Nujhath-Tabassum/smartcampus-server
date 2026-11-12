@@ -5,13 +5,13 @@ import cookieParser from "cookie-parser";
 
 import { connectToMongoDB } from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
+import complaintRoutes from "./routes/complaintRoutes.js";
 
 const app = express();
 
 const PORT = process.env.PORT || 8000;
 
 app.use(express.json());
-
 app.use(cookieParser());
 
 app.use(
@@ -22,6 +22,7 @@ app.use(
 );
 
 app.use("/api/auth", authRoutes);
+app.use("/api/complaints", complaintRoutes);
 
 app.get("/", (req, res) => {
   res.send({
