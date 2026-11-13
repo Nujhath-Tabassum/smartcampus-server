@@ -1,3 +1,4 @@
+
 import { MongoClient } from "mongodb";
 
 const client = new MongoClient(process.env.MONGODB_URL);
@@ -23,6 +24,16 @@ export async function connectToMongoDB() {
           studentId: { $type: "string" },
         },
       }
+    );
+
+    await db.collection("complaints").createIndex({
+      studentEmail: 1,
+      createdAt: -1,
+    });
+
+    await db.collection("emailVerifications").createIndex(
+      { expiresAt: 1 },
+      { expireAfterSeconds: 0 }
     );
 
     console.log("MongoDB connected successfully");
