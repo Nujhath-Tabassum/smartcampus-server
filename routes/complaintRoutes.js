@@ -258,6 +258,155 @@ router.get("/admin/all", verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
+router.get("/staff/my-duties", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "staff") {
+      return res.status(403).send({
+        success: false,
+        message: "Staff access only.",
+      });
+    }
+
+    const db = getDB();
+
+    const duties = await db
+      .collection("complaints")
+      .find({
+        "assignedStaff._id": new ObjectId(req.user.id),
+      })
+      .project({ image: 0 })
+      .sort({ assignedAt: -1 })
+      .toArray();
+
+    res.send({
+      success: true,
+      total: duties.length,
+      duties,
+    });
+  } catch (error) {
+    console.error("Staff duties error:", error);
+
+    res.status(500).send({
+      success: false,
+      message: "Failed to load assigned duties.",
+    });
+  }
+});
+
+router.get("/staff/dashboard", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "staff") {
+      return res.status(403).send({
+        success: false,
+        message: "Staff access only.",
+      });
+    }
+
+    const db = getDB();
+
+    const filter = {
+      "assignedStaff._id": new ObjectId(req.user.id),
+    };
+
+    const complaints = db.collection("complaints");
+
+    const [total, pending, inProgress, resolved, recentDuties] =
+      await Promise.all([
+        complaints.countDocuments(filter),
+        complaints.countDocuments({ ...filter, status: "Pending" }),
+        complaints.countDocuments({ ...filter, status: "In Progress" }),
+        complaints.countDocuments({ ...filter, status: "Resolved" }),
+        complaints
+          .find(filter)
+          .sort({ assignedAt: -1 })
+          .limit(5)
+          .project({ image: 0 })
+          .toArray(),
+      ]);
+
+    res.send({
+      success: true,
+      stats: {
+        total,
+        pending,
+        inProgress,
+        resolved,
+      },
+      recentDuties,
+    });
+  } catch (error) {
+    console.error("Staff dashboard error:", error);
+
+    res.status(500).send({
+      success: false,
+      message: "Failed to load staff dashboard.",
+    });
+  }
+});
+
+router.patch("/staff/:id/status", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role !== "staff") {
+      return res.status(403).send({
+        success: false,
+        message: "Staff access only.",
+      });
+    }
+
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({
+        success: false,
+        message: "Invalid complaint ID.",
+      });
+    }
+
+    const allowedStatuses = ["In Progress", "Resolved"];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).send({
+        success: false,
+        message: "Invalid complaint status.",
+      });
+    }
+
+    const db = getDB();
+
+    const result = await db.collection("complaints").updateOne(
+      {
+        _id: new ObjectId(id),
+        "assignedStaff._id": new ObjectId(req.user.id),
+      },
+      {
+        $set: {
+          status,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({
+        success: false,
+        message: "Assigned complaint not found.",
+      });
+    }
+
+    res.send({
+      success: true,
+      message: "Complaint status updated successfully.",
+    });
+  } catch (error) {
+    console.error("Staff status update error:", error);
+
+    res.status(500).send({
+      success: false,
+      message: "Failed to update complaint status.",
+    });
+  }
+});
 
 router.get("/admin/:id", verifyToken, verifyAdmin, async (req, res) => {
   try {
